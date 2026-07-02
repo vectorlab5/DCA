@@ -21,8 +21,8 @@ This framework applies conformal geometry principles to normalize morphological 
 
 ```bash
 # Clone and set up environment
-git clone https://github.com/username/deep-conformal-alignment.git
-cd deep-conformal-alignment
+git clone https://github.com/vectorlab5/DCA.git
+cd DCA
 
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
