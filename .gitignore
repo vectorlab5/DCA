@@ -1,107 +1,160 @@
+# ====================
+# Paper / Manuscript
+# ====================
+*.tex
+*.bib
+*.bbl
+*.blg
+*.aux
+*.out
+*.spl
+*.log
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.cls
+*.bst
+*.sty
+npj_author_guide.txt
+tables_extract.txt
+template.tex
+frag/
+body_*.tex
+method_section_*.tex
+method_test.*
+npj_header.tex
+npj_footer.tex
+npj_paper*
+npj_submission/
+paper.*
+paper_elsevier.*
+BUILD_NPJ.md
+
+# ====================
+# Figures & images
+# ====================
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.eps
+*.tiff
+*.svg
+
+# ====================
+# Archives
+# ====================
+*.zip
+*.tar.gz
+*.tar.bz2
+*.rar
+
+# ====================
+# Build / session notes
+# ====================
+FINAL_*.md
+IMPLEMENTATION_*.md
+SESSION_SUMMARY.md
+NARRATIVE_VERSION_SUMMARY.md
+METHODOLOGY_IMPROVEMENTS.md
+RELATED_WORK_IMPROVEMENTS.md
+EXPERIMENTS_IMPROVEMENTS.md
+EXPERIMENTS_GUIDE.md
+INTEGRATION_GUIDE.md
+VALIDATION_REPORT.md
+
+# ====================
+# Helper scripts (paper-specific)
+# ====================
+build_body.py
+build_intromethods.py
+figtools.py
+paperdata.py
+generate_failure_cases.py
+generate_visualization.py
+make_fig*.py
+contact_sheet*
+
+# ====================
+# Agents (internal)
+# ====================
+agents/
+
+# ====================
+# Duplicate release dir
+# ====================
+.dca_release/
+
+# ====================
+# Perl shim
+# ====================
+perlshim/
+
+# ====================
+# Data & large files
+# ====================
+data
+data/
+checkpoints/
+outputs/
+logs/
+runs/
+results/
+experiments/
+*.pth
+*.pt
+*.safetensors
+*.bin
+
+# ====================
 # Python
+# ====================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
 eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
-
-# Virtual Environment
 venv/
-ENV/
+.venv/
 env/
-.venv
+ENV/
 
-# IDEs
+# ====================
+# IDE / OS
+# ====================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# PyTorch
-*.pth
-*.pt
-!checkpoints/.gitkeep
-
-# Data
-data/
-!data/.gitkeep
-*.zip
-*.tar.gz
-
-# Outputs
-outputs/
-logs/
-runs/
-checkpoints/*.pth
-checkpoints/*.pt
-!checkpoints/.gitkeep
-
-# Visualizations
-*.png
-*.pdf
-*.jpg
-*.jpeg
-!architecture.png
-!**/figures/*.png
-!**/figures/*.pdf
-
-# Temporary files
-*.log
-*.tmp
-*.bak
-*.swp
-*.swo
-
-# OS
-.DS_Store
 Thumbs.db
+.tectonic-cache/
 
-# LaTeX
-*.aux
-*.bbl
-*.blg
-*.out
-*.synctex.gz
-*.fls
-*.fdb_latexmk
-
-# Results
-results/
-experiments/
-*.json
-*.csv
-!configs/*.yaml
-!configs/*.json
-
-# Misc
+# ====================
+# Testing / CI
+# ====================
 .cache/
 .pytest_cache/
 .coverage
 htmlcov/
+.ipynb_checkpoints/
 
-# Model weights (large files)
-*.safetensors
-*.bin
-
-# Keep empty directories
-!.gitkeep
+# ====================
+# Misc temp
+# ====================
+*.tmp
+*.bak
+fmt.log
+pass1.log
+tec.log
+tec2.log
+notes/
+manuscript/
+refs/
+code/
