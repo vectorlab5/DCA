@@ -1,0 +1,37 @@
+# Deep Conformal Alignment - Requirements
+# Python 3.8+
+
+# Core dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.21.0
+Pillow>=9.0.0
+scipy>=1.7.0
+
+# Data handling
+scikit-learn>=1.0.0
+pandas>=1.3.0
+h5py>=3.6.0
+
+# Configuration
+pyyaml>=6.0
+omegaconf>=2.3.0
+
+# Metrics and evaluation
+scikit-image>=0.19.0
+seaborn>=0.11.0
+matplotlib>=3.5.0
+tqdm>=4.62.0
+
+# Model components
+timm>=0.9.0
+einops>=0.6.0
+
+# Optional: Foundation models and advanced features
+# transformers>=4.30.0
+# huggingface-hub>=0.16.0
+
+# Development
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0

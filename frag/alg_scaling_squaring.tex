@@ -1,0 +1,13 @@
+\begin{algorithm}[t]
+\caption{Scaling-and-Squaring for Diffeomorphic Integration}
+\label{alg:scaling_squaring}
+\begin{algorithmic}[1]
+\REQUIRE Velocity field $v \in \mathbb{R}^{H \times W \times 2}$, number of steps $T \in \mathbb{N}$
+\ENSURE Deformation field $\phi \approx \exp(v)$
+\STATE $\phi^{(0)} \leftarrow v / 2^T$ \quad \COMMENT{$\phi^{(k)}$ represents displacement field}
+\FOR{$k = 1$ to $T$}
+    \STATE $\phi^{(k)}(x) \leftarrow \phi^{(k-1)}(x) + \phi^{(k-1)}(x + \phi^{(k-1)}(x))$ \quad \COMMENT{via bilinear interpolation}
+\ENDFOR
+\RETURN $\phi^{(T)}$
+\end{algorithmic}
+\end{algorithm}

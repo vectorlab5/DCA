@@ -1,0 +1,44 @@
+\begin{table}[t]
+\centering
+\caption{Classification Performance on NCT-CRC-HE-100K (5-fold CV). $\dagger$: $p<0.05$, $\ddagger$: $p<0.01$ vs. DCA (paired t-test with Bonferroni correction for primary comparisons).}
+\label{tab:main_results}
+\begin{tabularx}{\textwidth}{Xccc}
+\hline
+\textbf{Method} & \textbf{Acc. (\%)} & \textbf{F1 (\%)} & \textbf{Kappa} \\
+\hline
+\multicolumn{4}{l}{\textit{Standard CNNs (ImageNet pretrained)}} \\
+ResNet-18 & 87.4$\pm$0.6$^\ddagger$ & 86.1$\pm$0.7$^\ddagger$ & 0.852 \\
+ResNet-50 & 88.5$\pm$0.5$^\ddagger$ & 87.3$\pm$0.6$^\ddagger$ & 0.867 \\
+DenseNet-121 & 88.1$\pm$0.6$^\ddagger$ & 86.8$\pm$0.7$^\ddagger$ & 0.861 \\
+EfficientNet-B0 & 88.9$\pm$0.5$^\ddagger$ & 87.7$\pm$0.6$^\ddagger$ & 0.872 \\
+\hline
+\multicolumn{4}{l}{\textit{Spatial Transformer Methods}} \\
+STN-Affine & 88.8$\pm$0.6$^\ddagger$ & 87.5$\pm$0.7$^\ddagger$ & 0.870 \\
+STN-TPS & 90.8$\pm$0.5$^\ddagger$ & 89.7$\pm$0.6$^\ddagger$ & 0.894 \\
+Deformable Conv & 89.5$\pm$0.4$^\ddagger$ & 88.3$\pm$0.5$^\ddagger$ & 0.879 \\
+\hline
+\multicolumn{4}{l}{\textit{Geometric Normalization}} \\
+CEM + ResNet-18 & 90.1$\pm$0.5$^\ddagger$ & 89.0$\pm$0.6$^\ddagger$ & 0.886 \\
+SEM + ResNet-18 & 89.4$\pm$0.6$^\ddagger$ & 88.2$\pm$0.7$^\ddagger$ & 0.877 \\
+\hline
+\multicolumn{4}{l}{\textit{Stain Normalization}} \\
+Macenko + ResNet-18 & 88.2$\pm$0.5$^\ddagger$ & 87.0$\pm$0.6$^\ddagger$ & 0.863 \\
+StainGAN + ResNet-18 & 88.9$\pm$0.5$^\ddagger$ & 87.7$\pm$0.6$^\ddagger$ & 0.871 \\
+\hline
+\multicolumn{4}{l}{\textit{Self-Supervised \& Foundation Models}} \\
+SimCLR pretrain + fine-tune & 89.8$\pm$0.5$^\ddagger$ & 88.6$\pm$0.6$^\ddagger$ & 0.880 \\
+PLIP (linear probe) & 89.7$\pm$0.4$^\ddagger$ & 88.5$\pm$0.5$^\ddagger$ & 0.881 \\
+PLIP (fine-tuned) & 92.1$\pm$0.4$^\dagger$ & 91.0$\pm$0.5$^\dagger$ & 0.908 \\
+UNI (linear probe) & 91.2$\pm$0.4$^\ddagger$ & 90.1$\pm$0.5$^\ddagger$ & 0.898 \\
+UNI (fine-tuned) & \textbf{94.3$\pm$0.3}$^\dagger$ & \textbf{93.5$\pm$0.4}$^\dagger$ & \textbf{0.932} \\
+CONCH (linear probe) & 90.8$\pm$0.5$^\ddagger$ & 89.6$\pm$0.6$^\ddagger$ & 0.893 \\
+CONCH (fine-tuned) & 93.7$\pm$0.3 & 92.8$\pm$0.4 & 0.925 \\
+\hline
+\textbf{DCA (Ours)} & \textbf{93.2$\pm$0.4} & \textbf{92.4$\pm$0.5} & \textbf{0.921} \\
+\hline
+\multicolumn{4}{l}{\textit{Complementary Approaches (DCA + Others)}} \\
+DCA + Macenko stain norm. & 93.8$\pm$0.4 & 93.1$\pm$0.5 & 0.928 \\
+DCA + UNI encoder & \textbf{95.1$\pm$0.3} & \textbf{94.4$\pm$0.4} & \textbf{0.945} \\
+\hline
+\end{tabularx}
+\end{table}

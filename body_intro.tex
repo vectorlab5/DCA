@@ -1,0 +1,55 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Deep learning has transformed histopathological image analysis, enabling
+automated tissue classification, tumour grading, and biomarker
+prediction~\cite{huang2024surface,kuntz2021gastrointestinal,chaunzwa2021deep,hirra2021breast,wetstein2022deep}.
+Yet these models typically demand large annotated datasets to perform robustly,
+a critical bottleneck in pathology where each sample must be labelled by an
+expert. The problem is most acute for rare cancer subtypes and in
+resource-limited settings, and it is compounded by the substantial variability of
+histological images arising from tissue deformation, staining differences, and
+scanner artefacts.
+
+At the root of this challenge is the \textit{morphological heterogeneity} of
+tissue. Unlike natural images, histological patches contain irregular structures
+that vary dramatically across patients, preparation protocols, and scanning
+conditions, so that the same tissue type can appear very different from slide to
+slide. This forces models to allocate capacity to learning invariance to
+nuisance geometric variation instead of diagnostic features, degrading both data
+efficiency and cross-institution generalisation. Geometric normalisation---warping
+irregular tissue into a standardised domain before feature extraction---has been
+shown to help~\cite{huang2024surface}, but existing approaches require expensive
+per-image optimisation, apply the same hand-crafted transformation to every
+tissue type regardless of content, and decouple normalisation from classification
+so the two cannot be jointly optimised. Stain-normalisation
+methods~\cite{macenko2009method,shaban2019staingan} address colour, but not
+geometric, variability and are therefore complementary.
+
+We introduce \textbf{Deep Conformal Alignment (DCA)}, a framework that makes
+geometric normalisation \textit{learnable} and integrates it directly into
+end-to-end neural-network training. Building on spatial transformer
+networks~\cite{jaderberg2015spatial} and diffeomorphic
+registration~\cite{balakrishnan2019voxelmorph}, DCA parameterises deformations as
+velocity fields integrated by scaling-and-squaring, guaranteeing
+topology-preserving (diffeomorphic) transformations, and constrains them with a
+differentiable \textit{conformal-energy} loss derived from the Cauchy--Riemann
+equations so that learned warps preserve local angles---and thus local tissue
+structure---while normalising global morphology. Because the transformation is
+predicted in a single forward pass, DCA avoids the per-image optimisation of fixed
+geometric methods and runs in real time. Methodological detail, including the
+connection to quasiconformal mapping theory through the Beltrami coefficient, is
+deferred to Methods so that the clinical results remain in the foreground.
+
+Evaluating DCA on 100{,}000 colorectal-cancer patches across nine tissue classes,
+we show that it (i) attains 93.2\% accuracy, outperforming spatial-transformer,
+fixed-geometric, stain-normalisation, and self-supervised baselines with the same
+backbone; (ii) is substantially more label-efficient, matching supervised
+baselines that use several times more annotations; (iii) is complementary to
+pathology foundation models, reaching 95.1\% accuracy when combined with a
+pretrained encoder; (iv) generalises to an independent external cohort with the
+smallest accuracy drop among compared methods; and (v) learns interpretable,
+semantically adaptive transformations whose magnitude tracks tissue morphological
+variability ($r=0.94$). Together these results indicate that domain-appropriate
+geometric inductive bias is a practical route to data-efficient, robust
+histopathology analysis.

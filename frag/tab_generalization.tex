@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\caption{Cross-Dataset Generalization: Train on NCT-CRC-HE-100K, Test on CRC-VAL-HE-7K (No Fine-Tuning)}
+\label{tab:generalization}
+\begin{tabularx}{\textwidth}{Xccc}
+\hline
+\textbf{Method} & \textbf{Source (\%)} & \textbf{Target (\%)} & \textbf{Drop} \\
+\hline
+ResNet-18 & 87.4 & 82.6 & -4.8 \\
+STN-TPS & 90.8 & 87.6 & -3.2 \\
+CEM + ResNet-18 & 90.1 & 87.2 & -2.9 \\
+UNI (fine-tuned) & 94.3 & 91.8 & -2.5 \\
+\textbf{DCA (Ours)} & \textbf{93.2} & \textbf{91.1} & \textbf{-2.1} \\
+DCA + UNI encoder & \textbf{95.1} & \textbf{93.4} & \textbf{-1.7} \\
+\hline
+\end{tabularx}
+\end{table}

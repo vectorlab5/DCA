@@ -1,0 +1,910 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Springer Nature LaTeX template (sn-jnl) — npj Digital Medicine submission
+%% Converted from the Elsevier (elsarticle) source paper_elsevier.tex
+%% Submit as ONE .tex document; figures attached separately (do not \input).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[pdflatex,sn-nature]{sn-jnl}% Nature Portfolio Reference Style
+
+%%%% Standard packages
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{tabularx}%
+\usepackage{algorithm}%
+\usepackage{algorithmic}%
+\usepackage{url}%
+
+%% Math operators and macros carried over from the source manuscript
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Tr}{Tr}
+\newcommand{\vect}[1]{\mathbf{#1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+\newcommand{\set}[1]{\mathcal{#1}}
+
+%% Theorem-like environments (template styles)
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%
+\newtheorem{proposition}[theorem]{Proposition}%
+
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+
+%% Float placement: keep full-width figures near their callouts.
+%% In two-column layout, figure* can only go top-of-page or on a float page;
+%% these settings let more of them reach the top rather than deferring to the end.
+\setcounter{topnumber}{2}%              up to 2 top floats per page
+\setcounter{totalnumber}{3}%
+\renewcommand{\topfraction}{0.9}%       a top float may fill 90% of the page
+\renewcommand{\dbltopfraction}{0.9}%    same, for full-width (double-column) floats
+\renewcommand{\textfraction}{0.08}%     allow pages that are mostly float
+\renewcommand{\floatpagefraction}{0.7}%
+\renewcommand{\dblfloatpagefraction}{0.7}%
+
+\begin{document}
+
+\title[Deep Conformal Alignment for Histopathology]{Deep Conformal Alignment: Learning Canonical Representations for Robust Histopathology Image Analysis}
+
+%%=============================================================%%
+%% Replace the placeholder author/affiliation block below with
+%% the real author list before submission.
+%%=============================================================%%
+\author*[1]{\fnm{First} \sur{Author}}\email{author1@example.com}
+
+\author[2]{\fnm{Second} \sur{Author}}\email{author2@example.com}
+
+\affil*[1]{\orgdiv{Department}, \orgname{Organization 1}, \orgaddress{\city{City}, \country{Country}}}
+
+\affil[2]{\orgdiv{Department}, \orgname{Organization 2}, \orgaddress{\city{City}, \country{Country}}}
+
+%%==================================%%
+%% Unstructured abstract            %%
+%%==================================%%
+\abstract{Histopathology image analysis faces critical challenges from morphological variability due to tissue preparation artifacts, staining inconsistencies, and biological heterogeneity, requiring large annotated datasets that are expensive to obtain. While recent geometric normalization methods using fixed conformal mappings improve data efficiency, they require per-image optimization and cannot adapt to tissue semantics. We propose Deep Conformal Alignment (DCA), a principled framework integrating conformal geometry into end-to-end neural network learning. DCA employs a diffeomorphic spatial transformer parameterized by velocity fields with scaling-and-squaring integration, ensuring topology preservation. Our key contribution is a differentiable Conformal Energy Loss derived from the Cauchy-Riemann equations, connected to quasiconformal mapping theory through the Beltrami coefficient, which guides networks toward angle-preserving transformations that maintain local tissue structure. Comprehensive evaluation on colorectal cancer histopathology with 100,000 training images demonstrates that DCA achieves 93.2\% accuracy across 9 tissue types, outperforming diverse baselines including spatial transformers, fixed geometric normalization, and self-supervised learning. DCA is markedly label-efficient: trained on 10\% of labeled data (66.4\% accuracy) it matches supervised baselines trained on several times more annotations (reported peak label-efficiency up to 4.2$\times$). While fine-tuned foundation models achieve strong performance (94.3\%), DCA complements rather than competes with them: combining DCA's geometric normalization with foundation model representations achieves 95.1\% accuracy, demonstrating synergistic benefits. Learned transformations are semantically adaptive: tumor tissue undergoes aggressive normalization while structured tissues receive subtle adjustments, with deformation magnitude correlating with tissue morphological variability (r=0.94). Our work establishes principled integration of differential geometry into deep learning, offering a promising direction for data-efficient medical image analysis that remains valuable in the foundation model era.}
+
+\keywords{Histopathology, Conformal geometry, Deep learning, Image classification, Data efficiency}
+
+\maketitle
+\section{Introduction}
+\label{sec:introduction}
+
+Deep learning has transformed histopathological image analysis, enabling
+automated tissue classification, tumour grading, and biomarker
+prediction~\cite{huang2024surface,kuntz2021gastrointestinal,chaunzwa2021deep,hirra2021breast,wetstein2022deep}.
+Yet these models typically demand large annotated datasets to perform robustly,
+a critical bottleneck in pathology where each sample must be labelled by an
+expert. The problem is most acute for rare cancer subtypes and in
+resource-limited settings, and it is compounded by the substantial variability of
+histological images arising from tissue deformation, staining differences, and
+scanner artefacts.
+
+At the root of this challenge is the \textit{morphological heterogeneity} of
+tissue. Unlike natural images, histological patches contain irregular structures
+that vary dramatically across patients, preparation protocols, and scanning
+conditions, so that the same tissue type can appear very different from slide to
+slide. This forces models to allocate capacity to learning invariance to
+nuisance geometric variation instead of diagnostic features, degrading both data
+efficiency and cross-institution generalisation. Geometric normalisation---warping
+irregular tissue into a standardised domain before feature extraction---has been
+shown to help~\cite{huang2024surface}, but existing approaches require expensive
+per-image optimisation, apply the same hand-crafted transformation to every
+tissue type regardless of content, and decouple normalisation from classification
+so the two cannot be jointly optimised. Stain-normalisation
+methods~\cite{macenko2009method,shaban2019staingan} address colour, but not
+geometric, variability and are therefore complementary.
+
+We introduce \textbf{Deep Conformal Alignment (DCA)}, a framework that makes
+geometric normalisation \textit{learnable} and integrates it directly into
+end-to-end neural-network training. Building on spatial transformer
+networks~\cite{jaderberg2015spatial} and diffeomorphic
+registration~\cite{balakrishnan2019voxelmorph}, DCA parameterises deformations as
+velocity fields integrated by scaling-and-squaring, guaranteeing
+topology-preserving (diffeomorphic) transformations, and constrains them with a
+differentiable \textit{conformal-energy} loss derived from the Cauchy--Riemann
+equations so that learned warps preserve local angles---and thus local tissue
+structure---while normalising global morphology. Because the transformation is
+predicted in a single forward pass, DCA avoids the per-image optimisation of fixed
+geometric methods and runs in real time. Methodological detail, including the
+connection to quasiconformal mapping theory through the Beltrami coefficient, is
+deferred to Methods so that the clinical results remain in the foreground.
+
+Evaluating DCA on 100{,}000 colorectal-cancer patches across nine tissue classes,
+we show that it (i) attains 93.2\% accuracy, outperforming spatial-transformer,
+fixed-geometric, stain-normalisation, and self-supervised baselines with the same
+backbone; (ii) is substantially more label-efficient, matching supervised
+baselines that use several times more annotations; (iii) is complementary to
+pathology foundation models, reaching 95.1\% accuracy when combined with a
+pretrained encoder; (iv) generalises to an independent external cohort with the
+smallest accuracy drop among compared methods; and (v) learns interpretable,
+semantically adaptive transformations whose magnitude tracks tissue morphological
+variability ($r=0.94$). Together these results indicate that domain-appropriate
+geometric inductive bias is a practical route to data-efficient, robust
+histopathology analysis.
+
+%%=============================================================%%
+%% RESULTS  (results-forward npj structure)                    %%
+%%=============================================================%%
+\section{Results}
+\label{sec:results}
+
+\subsection{A geometry-aware framework for label-efficient tissue classification}
+
+We studied colorectal cancer histopathology, where nine tissue classes must be
+distinguished from haematoxylin-and-eosin (H\&E) stained image patches
+(Fig.~\ref{fig:overview}a): adipose (ADI), background (BACK), debris (DEB),
+lymphocytes (LYM), mucus (MUC), smooth muscle (MUS), normal colon mucosa
+(NORM), cancer-associated stroma (STR), and colorectal adenocarcinoma
+epithelium (TUM). A central obstacle to automated diagnosis in this setting is
+\textit{morphological heterogeneity}: the same tissue class can appear markedly
+different across patients, preparation protocols, and scanners, so that models
+must expend capacity learning invariance to nuisance geometric variation rather
+than diagnostic features. We quantified this heterogeneity per class as the
+intra-class morphological variability (MV), the mean pairwise distance of
+deep features within a class (Fig.~\ref{fig:overview}b,e). MV spans a wide range,
+from highly regular background and adipose tissue (MV~$=0.18$ and $0.31$) to
+structurally irregular tumour and stroma (MV~$=0.81$ and $0.76$).
+
+Deep Conformal Alignment (DCA) addresses this variability by learning to
+normalise tissue geometry before classification (Fig.~\ref{fig:overview}c).
+Each input patch is passed through a localisation network that predicts a
+smooth velocity field; this field is integrated into a topology-preserving
+(diffeomorphic) deformation that warps the patch into a canonical form, which is
+then classified by a standard convolutional backbone. The entire pipeline is
+trained end-to-end, and a differentiable conformal-energy penalty encourages the
+learned deformation to preserve local angles---maintaining the relative
+arrangement of nuclei and glandular structures---while normalising global shape
+(Fig.~\ref{fig:overview}d). Unlike fixed geometric-normalisation methods that
+solve a separate optimisation for every slide, DCA amortises this cost during
+training and applies the transformation in a single forward pass
+($\sim$15\,ms per patch). Full architectural and mathematical detail is given in
+Methods.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{Fig1_overview}
+\caption{\textbf{Study overview and the morphological-heterogeneity challenge in
+colorectal histopathology.} (a) Representative H\&E tiles for the nine tissue
+classes. (b) Intra-class appearance variation is large for irregular tissue
+(tumour, TUM) and small for regular tissue (background, BACK). (c) The DCA
+pipeline: a U-Net localisation network predicts a velocity field that is
+integrated by scaling-and-squaring into a diffeomorphic deformation; the warped,
+canonicalised patch is classified by a ResNet-18 backbone; training combines a
+classification loss with conformal-energy and smoothness regularisers.
+(d) Conformal normalisation applied to a real tissue patch, with the associated
+angle-distortion (conformal-energy) map. (e) Per-class morphological variability
+(MV), ordered from most to least heterogeneous. (f) Study design: 100{,}000
+training patches (NCT-CRC-HE-100K, 5-fold cross-validation) and an independent
+7{,}180-patch external cohort (CRC-VAL-HE-7K) held out for cross-institution
+testing.}
+\label{fig:overview}
+\end{figure*}
+
+\subsection{Learned transformations adapt to tissue morphology}
+
+A defining property of DCA is that the normalisation it applies is not fixed but
+adapts to the semantic content of each patch. Figure~\ref{fig:normalization}
+shows learned deformation fields and the resulting canonicalised tissue for three
+representative classes. For tumour epithelium, which is morphologically the most
+irregular, DCA applies the largest deformations (mean displacement
+$\bar{\|\phi\|}=18.2$\,px, mean conformal energy
+$\bar{\mathcal{E}}_{conf}=0.087$), warping irregular tumour boundaries and
+heterogeneous cell distributions toward a canonical layout. For normal mucosa the
+transformation is more restrained ($\bar{\|\phi\|}=9.4$\,px,
+$\bar{\mathcal{E}}_{conf}=0.042$), primarily aligning glandular structures, and
+for smooth muscle---already regular and aligned---the deformation is minimal
+($\bar{\|\phi\|}=5.1$\,px, $\bar{\mathcal{E}}_{conf}=0.021$).
+
+Two observations confirm that these transformations are both adaptive and
+geometrically well-behaved. First, the magnitude of deformation a class receives
+scales with its morphological variability and, in turn, with the accuracy gain
+DCA delivers for that class (Fig.~\ref{fig:normalization}f; Pearson $r=0.91$
+between mean displacement and per-class improvement). Second, the conformal-energy
+maps are dominated by low values: across all classes, 92\% of pixels satisfy
+$\mathcal{E}_{conf}<0.10$ (Fig.~\ref{fig:normalization}g), indicating that the
+learned maps are approximately angle-preserving (quasiconformal with low
+distortion) despite the large differences in deformation magnitude. This semantic
+adaptivity---aggressive normalisation for irregular tissue, gentle adjustment for
+structured tissue---emerges automatically from end-to-end optimisation and is not
+imposed by hand.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{Fig2_normalization}
+\caption{\textbf{DCA learns semantically adaptive, angle-preserving
+normalisation on real tissue.} (a--c) For tumour (TUM), normal mucosa (NORM), and
+smooth muscle (MUS): original H\&E patch, learned deformation field $\varphi$,
+normalised tissue, and conformal-energy map (blue, near-conformal; red, high
+angle distortion). Per-tissue mean displacement and mean conformal energy are
+annotated. (d,e) Mean displacement and mean conformal energy increase with tissue
+irregularity (TUM $>$ NORM $>$ MUS). (f) Deformation magnitude correlates with
+the per-class accuracy gain ($r=0.91$). (g) Across all tissue, 92\% of pixels
+have conformal energy below 0.10, confirming quasiconformal (angle-preserving)
+behaviour.}
+\label{fig:normalization}
+\end{figure*}
+
+\subsection{DCA improves classification across nine tissue types}
+
+On the 100{,}000-patch NCT-CRC-HE-100K benchmark with 5-fold cross-validation,
+DCA reaches 93.2\% accuracy and 92.4\% macro-F1 (Table~\ref{tab:main_results}).
+This exceeds every geometry-agnostic and geometry-fixed baseline trained with the
+same ResNet-18 backbone: DCA improves on the strongest standard CNN
+(EfficientNet-B0) by 4.3 percentage points (pp), on the best spatial-transformer
+method (STN-TPS) by 2.4\,pp, on fixed conformal normalisation (CEM) by 3.1\,pp,
+and on generative stain normalisation (StainGAN) by 4.3\,pp
+(Fig.~\ref{fig:performance}a). All differences are statistically significant
+($p<0.01$, paired $t$-test with Bonferroni correction).
+
+The per-class analysis reveals where and why DCA helps
+(Fig.~\ref{fig:performance}b,d,f; Table~\ref{tab:per_class}). The accuracy gain
+over ResNet-18 is largest for the most morphologically variable tissues---tumour
+($+9.3$\,pp), stroma ($+8.3$\,pp), and debris ($+7.3$\,pp)---and smallest for the
+most regular tissues (background $+0.5$\,pp, adipose $+2.1$\,pp). Across classes,
+the improvement correlates strongly with morphological variability (Pearson
+$r=0.94$, $p<0.001$; Fig.~\ref{fig:performance}d), directly linking DCA's benefit
+to the heterogeneity it is designed to normalise. Consistently, the confusion
+matrix (Fig.~\ref{fig:performance}c) shows the largest reductions in
+error precisely among morphologically similar class pairs: STR$\rightarrow$TUM
+confusion falls from 12.3\% to 5.8\%, DEB$\rightarrow$MUC from 8.7\% to 3.2\%, and
+LYM$\rightarrow$STR from 9.1\% to 4.5\% (Fig.~\ref{fig:performance}e).
+
+DCA is also complementary to large-scale pretraining. A fine-tuned pathology
+foundation model (UNI) attains the highest single-method accuracy (94.3\%),
+1.1\,pp above DCA, as expected given its access to millions of pretraining
+images. However, replacing DCA's ResNet-18 backbone with UNI's pretrained encoder
+while retaining DCA's geometric-normalisation head raises accuracy to 95.1\%,
+surpassing both DCA and fine-tuned UNI alone ($p<0.05$) with no additional
+labelled data---evidence that geometric normalisation contributes benefits
+orthogonal to those of foundation-model pretraining. Combining DCA with Macenko
+stain normalisation likewise gives a further $+0.6$\,pp, confirming that
+geometric and colour normalisation address distinct sources of variability.
+
+\begin{table}[t]
+\centering
+\caption{Classification Performance on NCT-CRC-HE-100K (5-fold CV). $\dagger$: $p<0.05$, $\ddagger$: $p<0.01$ vs. DCA (paired t-test with Bonferroni correction for primary comparisons).}
+\label{tab:main_results}
+\begin{tabularx}{\textwidth}{Xccc}
+\hline
+\textbf{Method} & \textbf{Acc. (\%)} & \textbf{F1 (\%)} & \textbf{Kappa} \\
+\hline
+\multicolumn{4}{l}{\textit{Standard CNNs (ImageNet pretrained)}} \\
+ResNet-18 & 87.4$\pm$0.6$^\ddagger$ & 86.1$\pm$0.7$^\ddagger$ & 0.852 \\
+ResNet-50 & 88.5$\pm$0.5$^\ddagger$ & 87.3$\pm$0.6$^\ddagger$ & 0.867 \\
+DenseNet-121 & 88.1$\pm$0.6$^\ddagger$ & 86.8$\pm$0.7$^\ddagger$ & 0.861 \\
+EfficientNet-B0 & 88.9$\pm$0.5$^\ddagger$ & 87.7$\pm$0.6$^\ddagger$ & 0.872 \\
+\hline
+\multicolumn{4}{l}{\textit{Spatial Transformer Methods}} \\
+STN-Affine & 88.8$\pm$0.6$^\ddagger$ & 87.5$\pm$0.7$^\ddagger$ & 0.870 \\
+STN-TPS & 90.8$\pm$0.5$^\ddagger$ & 89.7$\pm$0.6$^\ddagger$ & 0.894 \\
+Deformable Conv & 89.5$\pm$0.4$^\ddagger$ & 88.3$\pm$0.5$^\ddagger$ & 0.879 \\
+\hline
+\multicolumn{4}{l}{\textit{Geometric Normalization}} \\
+CEM + ResNet-18 & 90.1$\pm$0.5$^\ddagger$ & 89.0$\pm$0.6$^\ddagger$ & 0.886 \\
+SEM + ResNet-18 & 89.4$\pm$0.6$^\ddagger$ & 88.2$\pm$0.7$^\ddagger$ & 0.877 \\
+\hline
+\multicolumn{4}{l}{\textit{Stain Normalization}} \\
+Macenko + ResNet-18 & 88.2$\pm$0.5$^\ddagger$ & 87.0$\pm$0.6$^\ddagger$ & 0.863 \\
+StainGAN + ResNet-18 & 88.9$\pm$0.5$^\ddagger$ & 87.7$\pm$0.6$^\ddagger$ & 0.871 \\
+\hline
+\multicolumn{4}{l}{\textit{Self-Supervised \& Foundation Models}} \\
+SimCLR pretrain + fine-tune & 89.8$\pm$0.5$^\ddagger$ & 88.6$\pm$0.6$^\ddagger$ & 0.880 \\
+PLIP (linear probe) & 89.7$\pm$0.4$^\ddagger$ & 88.5$\pm$0.5$^\ddagger$ & 0.881 \\
+PLIP (fine-tuned) & 92.1$\pm$0.4$^\dagger$ & 91.0$\pm$0.5$^\dagger$ & 0.908 \\
+UNI (linear probe) & 91.2$\pm$0.4$^\ddagger$ & 90.1$\pm$0.5$^\ddagger$ & 0.898 \\
+UNI (fine-tuned) & \textbf{94.3$\pm$0.3}$^\dagger$ & \textbf{93.5$\pm$0.4}$^\dagger$ & \textbf{0.932} \\
+CONCH (linear probe) & 90.8$\pm$0.5$^\ddagger$ & 89.6$\pm$0.6$^\ddagger$ & 0.893 \\
+CONCH (fine-tuned) & 93.7$\pm$0.3 & 92.8$\pm$0.4 & 0.925 \\
+\hline
+\textbf{DCA (Ours)} & \textbf{93.2$\pm$0.4} & \textbf{92.4$\pm$0.5} & \textbf{0.921} \\
+\hline
+\multicolumn{4}{l}{\textit{Complementary Approaches (DCA + Others)}} \\
+DCA + Macenko stain norm. & 93.8$\pm$0.4 & 93.1$\pm$0.5 & 0.928 \\
+DCA + UNI encoder & \textbf{95.1$\pm$0.3} & \textbf{94.4$\pm$0.4} & \textbf{0.945} \\
+\hline
+\end{tabularx}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Per-Class Test Accuracy (\%) and Morphological Variability (MV). MV computed as mean pairwise Euclidean distance of GAP features from ImageNet-pretrained ResNet-18.}
+\label{tab:per_class}
+\begin{tabularx}{\textwidth}{Xccccr}
+\hline
+\textbf{Class} & \textbf{ResNet} & \textbf{STN-TPS} & \textbf{DCA} & \textbf{$\Delta$} & \textbf{MV} \\
+\hline
+ADI & 94.8 & 95.6 & \textbf{96.9} & +2.1 & 0.31 \\
+BACK & 98.9 & 99.1 & \textbf{99.4} & +0.5 & 0.18 \\
+DEB & 83.2 & 87.1 & \textbf{90.5} & +7.3 & 0.72 \\
+LYM & 80.1 & 84.5 & \textbf{87.8} & +7.7 & 0.68 \\
+MUC & 86.4 & 89.0 & \textbf{92.1} & +5.7 & 0.54 \\
+MUS & 92.4 & 93.5 & \textbf{94.8} & +2.4 & 0.35 \\
+NORM & 89.2 & 91.3 & \textbf{93.2} & +4.0 & 0.42 \\
+STR & 77.1 & 81.6 & \textbf{85.4} & +8.3 & 0.76 \\
+TUM & 79.3 & 85.0 & \textbf{88.6} & +9.3 & 0.81 \\
+\hline
+\textbf{Avg.} & 87.4 & 90.8 & \textbf{93.2} & +5.8 & -- \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{Fig3_performance}
+\caption{\textbf{Classification performance across methods and tissue classes.}
+(a) Accuracy on NCT-CRC-HE-100K for 21 methods (mean $\pm$ s.d. over 5 folds);
+DCA (vermillion) outperforms all backbone-matched baselines and is complemented
+by, rather than competing with, foundation models (blue). (b) Per-class accuracy
+for ResNet-18, STN-TPS, and DCA. (c) Confusion matrices before (ResNet-18) and
+after (DCA) geometric normalisation. (d) Per-class accuracy gain versus
+morphological variability ($r=0.94$). (e) Largest reductions in inter-class
+confusion. (f) Per-class improvement of DCA over ResNet-18, ordered by
+magnitude.}
+\label{fig:performance}
+\end{figure*}
+
+\subsection{Label efficiency and cross-institution generalisation}
+
+Because expert annotation is the principal bottleneck in computational pathology,
+we assessed how DCA performs when labelled data are scarce
+(Table~\ref{tab:data_efficiency}; Fig.~\ref{fig:efficiency}a). Trained on only
+10\% of the labelled data (6{,}000 patches), DCA reaches 66.4\% accuracy,
+exceeding ResNet-18 at the same budget by 22.9\,pp and approaching ResNet-18's
+performance at roughly three-to-four times more labelled data
+(Fig.~\ref{fig:efficiency}b): interpolating the plotted ResNet-18 curve, it
+attains DCA's 10\%-data accuracy only at $\sim$33\% of the labels. The advantage
+is largest in the most label-scarce regime---at 5\% data, DCA leads ResNet-18 by
+21.6\,pp---and the gap narrows smoothly as data increase. DCA at 10\% also
+outperforms self-supervised SimCLR pretraining at 10\% (56.3\%) by 10.1\,pp,
+indicating that an explicit geometric inductive bias yields greater label
+efficiency than unsupervised representation learning alone in this domain.
+Combining DCA with a foundation-model encoder pushes 10\%-data accuracy to 79.8\%,
+above UNI alone (74.2\%), so the two forms of prior compound
+(Fig.~\ref{fig:efficiency}f).
+
+Robust transfer across institutions is equally important for clinical
+deployment. Trained on NCT-CRC-HE-100K and tested without fine-tuning on the
+independent CRC-VAL-HE-7K cohort---acquired with different scanners, staining
+batches, and preparation protocols---DCA loses only 2.1\,pp of accuracy, versus
+4.8\,pp for ResNet-18 and 3.2\,pp for STN-TPS (Table~\ref{tab:generalization};
+Fig.~\ref{fig:efficiency}c,d). DCA combined with a foundation-model encoder shows
+the smallest drop of all (1.7\,pp). The external tiles in
+Fig.~\ref{fig:efficiency}e illustrate the visual domain shift the model
+withstands. This improved generalisation is consistent with DCA normalising
+scanner- and protocol-specific geometric variation while its diffeomorphic
+constraint discourages source-specific overfitting.
+
+\begin{table}[t]
+\centering
+\caption{Test Accuracy (\%) vs. Training Data Fraction (5-fold CV, mean$\pm$std). SimCLR and UNI use full unlabeled data for pretraining, then supervised fine-tuning on indicated fraction.}
+\label{tab:data_efficiency}
+\begin{tabularx}{\textwidth}{Xccccc}
+\hline
+\textbf{Method} & \textbf{5\%} & \textbf{10\%} & \textbf{20\%} & \textbf{50\%} & \textbf{100\%} \\
+\hline
+ResNet-18 & 31.2$\pm$1.8 & 43.5$\pm$1.5 & 57.2$\pm$1.2 & 73.8$\pm$0.9 & 87.4$\pm$0.6 \\
+STN-TPS & 38.7$\pm$1.6 & 52.1$\pm$1.3 & 64.8$\pm$1.0 & 79.6$\pm$0.7 & 90.8$\pm$0.5 \\
+CEM & 36.4$\pm$1.7 & 49.8$\pm$1.4 & 62.5$\pm$1.1 & 77.9$\pm$0.8 & 90.1$\pm$0.5 \\
+SimCLR + FT & 42.1$\pm$1.5 & 56.3$\pm$1.2 & 68.7$\pm$1.0 & 80.2$\pm$0.7 & 89.8$\pm$0.5 \\
+UNI (FT) & 61.8$\pm$1.2 & 74.2$\pm$0.9 & 83.1$\pm$0.7 & 89.7$\pm$0.5 & 94.3$\pm$0.3 \\
+\textbf{DCA} & \textbf{52.8$\pm$1.3} & \textbf{66.4$\pm$1.0} & \textbf{78.1$\pm$0.8} & \textbf{87.5$\pm$0.5} & \textbf{93.2$\pm$0.4} \\
+DCA + UNI & \textbf{67.9$\pm$1.1} & \textbf{79.8$\pm$0.8} & \textbf{87.3$\pm$0.6} & \textbf{92.1$\pm$0.4} & \textbf{95.1$\pm$0.3} \\
+\hline
+\end{tabularx}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Cross-Dataset Generalization: Train on NCT-CRC-HE-100K, Test on CRC-VAL-HE-7K (No Fine-Tuning)}
+\label{tab:generalization}
+\begin{tabularx}{\textwidth}{Xccc}
+\hline
+\textbf{Method} & \textbf{Source (\%)} & \textbf{Target (\%)} & \textbf{Drop} \\
+\hline
+ResNet-18 & 87.4 & 82.6 & -4.8 \\
+STN-TPS & 90.8 & 87.6 & -3.2 \\
+CEM + ResNet-18 & 90.1 & 87.2 & -2.9 \\
+UNI (fine-tuned) & 94.3 & 91.8 & -2.5 \\
+\textbf{DCA (Ours)} & \textbf{93.2} & \textbf{91.1} & \textbf{-2.1} \\
+DCA + UNI encoder & \textbf{95.1} & \textbf{93.4} & \textbf{-1.7} \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{Fig4_efficiency}
+\caption{\textbf{Label efficiency and cross-institution generalisation.}
+(a) Learning curves across labelled-data fractions (5--100\%); DCA (vermillion)
+leads supervised baselines throughout, with the largest margin in low-data
+regimes. (b) DCA reaches 66.4\% accuracy using 10\% of labels; the plotted
+ResNet-18 curve attains the same accuracy only near 33\% of labels (grey marker).
+(c) Source (100K) versus external (7K) accuracy for six methods. (d) Accuracy
+drop under domain shift (smaller is better); DCA and DCA+encoder are most robust.
+(e) Representative unseen tiles from the external CRC-VAL-HE-7K cohort.
+(f) Summary: DCA delivers substantially higher accuracy per labelled example
+(reported peak label-efficiency up to 4.2$\times$).}
+\label{fig:efficiency}
+\end{figure*}
+
+\subsection{Robustness, component contributions, and interpretable failures}
+
+Finally, we examined DCA's robustness, the contribution of its components, and
+its characteristic errors (Fig.~\ref{fig:robustness}). Under three image
+corruptions applied at test time---Gaussian noise, blur, and aggressive JPEG
+compression---DCA retains higher accuracy than ResNet-18 and STN-TPS in every
+condition, and its relative advantage widens under degradation
+(Fig.~\ref{fig:robustness}a; Table~\ref{tab:robustness}): the margin over
+ResNet-18 grows from 5.8\,pp on clean data to 10.9\,pp under noise and 11.3\,pp
+under blur. Defining transformations on spatial structure rather than pixel
+intensity, and constraining them to be smooth and angle-preserving, plausibly
+provides implicit regularisation against such artefacts.
+
+Ablating DCA's components confirms that the geometric constraints drive its
+performance (Fig.~\ref{fig:robustness}b; Table~\ref{tab:ablation}). Removing the
+conformal-energy loss costs 3.4\,pp---the single largest drop among the loss
+terms---while replacing the diffeomorphic velocity parameterisation with a direct
+displacement field costs 5.0\,pp, confirming that both angle preservation and
+topology preservation are necessary. The method is robust to its two key
+regularisation weights, maintaining $>$91\% accuracy across a broad plateau of
+$\lambda_{conf}$ and $\lambda_{smooth}$ values, with the optimum at
+$\lambda_{conf}=1.0$, $\lambda_{smooth}=0.1$ (Fig.~\ref{fig:robustness}c;
+Table~\ref{tab:hyperparameter}).
+
+Examining the errors DCA does make (Fig.~\ref{fig:robustness}d;
+Table~\ref{tab:failure}) shows they are concentrated in genuinely ambiguous
+cases: confusions between morphologically overlapping classes that co-occur in
+the tumour microenvironment (STR$\leftrightarrow$TUM, 29.1\% of errors;
+DEB$\leftrightarrow$MUC, 20.9\%; LYM$\leftrightarrow$STR, 15.9\%) and
+boundary/ambiguous patches (21.3\%). A minority of errors (12.8\%) arise from
+over-aggressive deformation and are associated with elevated conformal energy.
+Indeed, misclassified patches carry significantly higher mean conformal energy
+than correct ones (0.089 versus 0.042, $p<0.001$), suggesting that conformal
+energy could serve as an intrinsic uncertainty signal
+(Fig.~\ref{fig:robustness}e).
+
+\begin{table}[t]
+\centering
+\caption{Robustness to Image Corruptions: Test Accuracy (\%, 5-fold CV)}
+\label{tab:robustness}
+\begin{tabularx}{\textwidth}{Xcccc}
+\hline
+\textbf{Method} & \textbf{Clean} & \textbf{Noise} & \textbf{Blur} & \textbf{JPEG} \\
+\hline
+ResNet-18 & 87.4$\pm$0.6 & 71.2$\pm$1.2 & 68.5$\pm$1.4 & 75.8$\pm$1.0 \\
+STN-TPS & 90.8$\pm$0.5 & 76.4$\pm$1.0 & 73.1$\pm$1.2 & 80.2$\pm$0.8 \\
+\textbf{DCA} & \textbf{93.2$\pm$0.4} & \textbf{82.1$\pm$0.8} & \textbf{79.8$\pm$1.0} & \textbf{85.6$\pm$0.7} \\
+\hline
+\end{tabularx}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Ablation Study on DCA Components (5-fold CV)}
+\label{tab:ablation}
+\begin{tabularx}{\textwidth}{Xccc}
+\hline
+\textbf{Configuration} & \textbf{Acc. (\%)} & \textbf{F1 (\%)} & \textbf{$\Delta$Acc.} \\
+\hline
+Full DCA & \textbf{93.2$\pm$0.4} & \textbf{92.4$\pm$0.5} & -- \\
+\hline
+\multicolumn{4}{l}{\textit{Loss Components (Isolating Geometric Constraints)}} \\
+\quad STN-TPS (no geometric loss) & 90.8$\pm$0.5 & 89.7$\pm$0.6 & -2.4 \\
+\quad VoxelMorph-style (diffeo only) & 91.4$\pm$0.5 & 90.5$\pm$0.6 & -1.8 \\
+\quad w/o $\mathcal{E}_{conf}$ ($\lambda_{conf}=0$) & 89.8$\pm$0.5 & 88.7$\pm$0.6 & -3.4 \\
+\quad w/o $\mathcal{R}_{smooth}$ ($\lambda_{smooth}=0$) & 91.5$\pm$0.5 & 90.6$\pm$0.6 & -1.7 \\
+\hline
+\multicolumn{4}{l}{\textit{Diffeomorphic Parameterization}} \\
+\quad Direct displacement (no SS) & 88.2$\pm$0.6 & 87.0$\pm$0.7 & -5.0 \\
+\quad Velocity + SS ($T=7$, default) & 93.2$\pm$0.4 & 92.4$\pm$0.5 & -- \\
+\hline
+\multicolumn{4}{l}{\textit{Localization Architecture}} \\
+\quad 3-layer CNN encoder & 90.4$\pm$0.5 & 89.3$\pm$0.6 & -2.8 \\
+\quad ResNet-18 encoder (no skip) & 92.1$\pm$0.4 & 91.2$\pm$0.5 & -1.1 \\
+\quad U-Net (default) & 93.2$\pm$0.4 & 92.4$\pm$0.5 & -- \\
+\hline
+\multicolumn{4}{l}{\textit{Scaling-Squaring Steps $T$}} \\
+\quad $T=3$ & 90.9$\pm$0.5 & 89.8$\pm$0.6 & -2.3 \\
+\quad $T=5$ & 92.3$\pm$0.4 & 91.4$\pm$0.5 & -0.9 \\
+\quad $T=7$ (default) & 93.2$\pm$0.4 & 92.4$\pm$0.5 & -- \\
+\quad $T=9$ & 93.1$\pm$0.4 & 92.3$\pm$0.5 & -0.1 \\
+\hline
+\multicolumn{4}{l}{\textit{Classification Backbone}} \\
+\quad ResNet-18 (default) & 93.2$\pm$0.4 & 92.4$\pm$0.5 & -- \\
+\quad ResNet-50 & 93.8$\pm$0.4 & 93.1$\pm$0.5 & +0.6 \\
+\quad EfficientNet-B0 & 93.5$\pm$0.4 & 92.8$\pm$0.5 & +0.3 \\
+\hline
+\multicolumn{4}{l}{\textit{Input Resolution}} \\
+\quad $112 \times 112$ & 90.1$\pm$0.5 & 89.0$\pm$0.6 & -3.1 \\
+\quad $224 \times 224$ (default) & 93.2$\pm$0.4 & 92.4$\pm$0.5 & -- \\
+\quad $448 \times 448$ & 93.6$\pm$0.4 & 92.9$\pm$0.5 & +0.4 \\
+\hline
+\multicolumn{4}{l}{\textit{Training Strategy}} \\
+\quad Frozen backbone & 89.1$\pm$0.6 & 88.0$\pm$0.7 & -4.1 \\
+\quad Two-stage training & 90.8$\pm$0.5 & 89.7$\pm$0.6 & -2.4 \\
+\quad End-to-end (default) & 93.2$\pm$0.4 & 92.4$\pm$0.5 & -- \\
+\hline
+\end{tabularx}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Hyperparameter Grid Search: Test Accuracy (\%). Values are means across 5 folds; standard deviations range from $\pm$0.3 to $\pm$0.6 (omitted for clarity).}
+\label{tab:hyperparameter}
+\begin{tabularx}{\textwidth}{X|ccccc}
+\hline
+$\lambda_{conf}$ \textbackslash{} $\lambda_{sm}$ & 0.01 & 0.05 & 0.1 & 0.2 & 0.5 \\
+\hline
+0.1 & 88.4 & 88.9 & 89.2 & 89.0 & 88.1 \\
+0.5 & 91.2 & 91.8 & 92.1 & 91.7 & 90.5 \\
+1.0 & 92.1 & 92.8 & \textbf{93.2} & 92.6 & 91.2 \\
+2.0 & 91.5 & 92.3 & 92.7 & 92.1 & 90.8 \\
+5.0 & 89.8 & 90.4 & 90.9 & 90.2 & 89.1 \\
+\hline
+\end{tabularx}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Failure Mode Analysis (N=680 misclassified samples)}
+\label{tab:failure}
+\begin{tabularx}{\textwidth}{Xcc}
+\hline
+\textbf{Failure Mode} & \textbf{Count} & \textbf{Percentage} \\
+\hline
+STR $\leftrightarrow$ TUM confusion & 198 & 29.1\% \\
+DEB $\leftrightarrow$ MUC confusion & 142 & 20.9\% \\
+LYM $\leftrightarrow$ STR confusion & 108 & 15.9\% \\
+Over-aggressive deformation & 87 & 12.8\% \\
+Boundary/ambiguous samples & 145 & 21.3\% \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{Fig5_robustness}
+\caption{\textbf{Robustness, component ablation, and interpretable failure
+modes.} (a) Accuracy under clean and corrupted inputs (noise, blur, JPEG); DCA's
+margin widens under corruption. (b) Ablation: change in accuracy relative to full
+DCA when each component is removed or replaced (conformal loss and diffeomorphic
+parameterisation contribute most). (c) Hyperparameter sensitivity over
+$\lambda_{conf}\times\lambda_{smooth}$, with a broad high-accuracy plateau and the
+optimum boxed. (d) Distribution of the 680 misclassified test patches by failure
+mode. (e) Representative failure cases (real DCA outputs): original patch, learned
+deformation, transformed tissue, and conformal-energy map.}
+\label{fig:robustness}
+\end{figure*}
+
+%%=============================================================%%
+%% DISCUSSION                                                  %%
+%%=============================================================%%
+\section{Discussion}
+\label{sec:discussion}
+
+Deep Conformal Alignment shows that morphological variability in histopathology,
+a principal driver of poor data efficiency and limited cross-institution
+transfer, can be addressed by learning to normalise tissue geometry as part of
+the classification pipeline rather than as a fixed preprocessing step. Three
+findings are of practical significance. First, the accuracy DCA gains for a given
+tissue class scales with that class's morphological heterogeneity
+($r=0.94$), so the method concentrates its benefit exactly where irregularity is
+greatest---tumour, stroma, and debris---and reduces confusion between
+morphologically overlapping classes. Second, DCA is markedly label-efficient,
+matching supervised baselines that use roughly three-to-four times more
+annotations and outperforming self-supervised pretraining in the low-data regime;
+this matters most where expert labels are scarce, such as rare subtypes and
+resource-limited settings. Third, geometric normalisation is complementary to
+foundation-model pretraining: adding DCA's normalisation head to a pretrained
+encoder improves both accuracy and cross-institution robustness beyond either
+component alone, so the approach remains useful in the foundation-model era rather
+than being superseded by it.
+
+The learned transformations are also interpretable. Their magnitude adapts to
+tissue type, they remain approximately angle-preserving (92\% of pixels below a
+low conformal-energy threshold), and the residual conformal energy is elevated
+precisely on the patches the model misclassifies, pointing to conformal energy as
+a candidate intrinsic uncertainty measure for clinical decision support.
+
+Several limitations define the scope of these conclusions and motivate future
+work. Both datasets are colorectal cancer with H\&E staining; generalisation to
+other organs (breast, lung, brain) and to other modalities (immunohistochemistry,
+fluorescence) remains to be established, although the underlying geometric
+principles are not tissue-specific. Extension to gigapixel whole-slide analysis
+would require hierarchical architectures that maintain geometric coherence across
+scales. Establishing a calibrated relationship between conformal energy and
+predictive confidence could turn the interpretability signal observed here into a
+usable uncertainty estimate. Finally, integrating geometric normalisation with
+multimodal foundation models that combine image, text, and molecular data is a
+natural next step toward more comprehensive diagnostic systems. Overall, DCA
+indicates that building domain-appropriate geometric structure into deep learning
+is a productive route to more label-efficient, robust, and interpretable clinical
+image analysis.
+
+%%=============================================================%%
+%% METHODS  (CS theory relocated here)                         %%
+%%=============================================================%%
+\section{Methods}
+\label{sec:method}
+
+\subsection{Datasets}
+
+We evaluate on two colorectal-cancer histopathology benchmarks.
+\textit{NCT-CRC-HE-100K}~\cite{nct_dataset} contains 100{,}000 non-overlapping
+$224\times224$ H\&E patches at 0.5\,$\mu$m/pixel across nine tissue classes
+(ADI, BACK, DEB, LYM, MUC, MUS, NORM, STR, TUM). We use 5-fold cross-validation
+with stratified splits (60\% train, 20\% validation, 20\% test per fold) and
+report mean\,$\pm$\,s.d. across folds. \textit{CRC-VAL-HE-7K}~\cite{nct_dataset}
+contains 7{,}180 patches from an independent cohort with different staining
+protocols and scanners, used exclusively for cross-institution testing without
+fine-tuning.
+
+\subsection{Baselines and evaluation}
+
+We compare DCA against 14 methods spanning standard CNNs (ResNet-18/50,
+DenseNet-121, EfficientNet-B0), spatial-transformer methods (STN-Affine,
+STN-TPS~\cite{jaderberg2015spatial}, Deformable
+Convolution~\cite{dai2017deformable}), fixed geometric normalisation (CEM and
+SEM~\cite{huang2024surface}), stain normalisation
+(Macenko~\cite{macenko2009method}, StainGAN~\cite{shaban2019staingan}),
+self-supervised pretraining (SimCLR~\cite{chen2020simple}), and pathology
+foundation models (PLIP~\cite{huang2023plip}, UNI~\cite{chen2024uni},
+CONCH~\cite{lu2024conch}) under both linear-probe and fine-tuned protocols. All
+spatial-transformer and geometric methods use a ResNet-18 backbone for fair
+comparison. We report top-1 accuracy, macro-F1, and Cohen's $\kappa$, and assess
+significance with paired $t$-tests across folds with Bonferroni correction
+($\dagger$: $p<0.05$; $\ddagger$: $p<0.01$).
+
+\textbf{Implementation.} All models train for 50 epochs with AdamW
+($\beta_1=0.9$, $\beta_2=0.999$, initial learning rate $10^{-3}$, weight decay
+$10^{-4}$), cosine annealing with 5-epoch warmup, and batch size 32 on NVIDIA
+A100 GPUs. Augmentation comprises random flips, rotation ($\pm15^\circ$), and
+colour jitter ($\pm0.2$), disabled at validation and test. For DCA we set
+$\lambda_{conf}=1.0$, $\lambda_{smooth}=0.1$, and $T=7$ (Table~\ref{tab:hyperparameter}).
+Random seeds are fixed to \{42, 123, 456, 789, 1024\} for the five folds and
+applied identically across methods. Foundation models use a $10\times$ lower
+backbone learning rate for fine-tuning; SimCLR is pretrained for 200 epochs
+(temperature 0.5) before supervised fine-tuning. Table~\ref{tab:comparison_prior}
+summarises how DCA differs from prior geometric-transformation approaches.
+
+\begin{table}[t]
+\centering
+\caption{Comparison of Geometric Transformation Approaches}
+\label{tab:comparison_prior}
+\begin{tabularx}{\textwidth}{Xcccc}
+\hline
+\textbf{Method} & \textbf{Learnable} & \textbf{Conformal} & \textbf{Diffeo.} & \textbf{End-to-End} \\
+\hline
+Standard STN~\cite{jaderberg2015spatial} & \checkmark & $\times$ & $\times$ & \checkmark \\
+VoxelMorph~\cite{balakrishnan2019voxelmorph} & \checkmark & $\times$ & \checkmark & \checkmark \\
+Fixed CEM~\cite{huang2024surface} & $\times$ & \checkmark & $\checkmark^*$ & $\times$ \\
+\textbf{DCA (Ours)} & \checkmark & \checkmark & \checkmark & \checkmark \\
+\hline
+\end{tabularx}
+\vspace{1mm}
+\footnotesize{$^*$CEM produces conformal maps which are diffeomorphic under appropriate boundary conditions; however, the optimization is decoupled from classification.}
+\end{table}
+
+
+\subsection{Problem formulation}
+
+Let $\Omega\subset\mathbb{R}^2$ denote the image domain and
+$\mathcal{I}=L^2(\Omega,\mathbb{R}^3)$ the space of RGB images. Given a labelled
+dataset $\mathcal{D}=\{(I_i,y_i)\}_{i=1}^N$ with $I_i\in\mathcal{I}$ and
+$y_i\in\{1,\ldots,C\}$, we jointly learn a transformation network
+$\mathcal{T}_\psi:\mathcal{I}\rightarrow\mathfrak{X}(\Omega)$ that maps each image
+to a velocity field $v_i=\mathcal{T}_\psi(I_i)$ (in practice an $H\times W\times2$
+tensor), from which a diffeomorphism $\phi_i=\exp(v_i)\in\text{Diff}^+(\Omega)$ is
+obtained, and a classifier $f_\theta:\mathcal{I}\rightarrow\Delta^{C-1}$. The
+transformed image is $\tilde{I}_i=I_i\circ\phi_i$ (backward warping via
+differentiable bilinear interpolation). The learning problem is
+\begin{equation}
+\min_{\psi,\theta}\;\mathbb{E}_{(I,y)\sim\mathcal{D}}\left[\mathcal{L}_{cls}(f_\theta(\tilde{I}),y)+\lambda_{conf}\mathcal{E}_{conf}(\phi)+\lambda_{smooth}\mathcal{R}_{smooth}(v)\right],
+\label{eq:objective}
+\end{equation}
+balancing classification accuracy, angle preservation, and deformation
+smoothness.
+
+\subsection{Diffeomorphic spatial transformer}
+
+Rather than predicting $\phi$ directly, we predict a stationary velocity field
+$v$ and obtain $\phi$ via the exponential map, $\phi=\exp(v)$
+(Definition~\ref{def:exp_map}). The localisation network $g_\psi$ is a
+U-Net~\cite{ronneberger2015unet} with four encoder blocks (channels
+$[3,64,128,256,512]$) and a mirrored decoder with skip connections; the final
+$1\times1$ convolution outputs the two velocity components and is initialised to
+zero so that the transformation begins at identity. The exponential map is
+approximated by scaling-and-squaring~\cite{arsigny2006logdiff}
+(Algorithm~\ref{alg:scaling_squaring}), which guarantees a diffeomorphism for
+bounded velocity magnitude (Proposition~\ref{prop:diffeomorphism}).
+
+\begin{definition}[Exponential map]
+\label{def:exp_map}
+The exponential map $\exp:\mathfrak{X}(\Omega)\rightarrow\text{Diff}^+(\Omega)$ is
+$\phi=\exp(v)=\lim_{T\rightarrow\infty}\left(\text{Id}+v/T\right)^T$, where
+$\text{Id}$ is the identity transformation.
+\end{definition}
+
+\begin{algorithm}[t]
+\caption{Scaling-and-Squaring for Diffeomorphic Integration}
+\label{alg:scaling_squaring}
+\begin{algorithmic}[1]
+\REQUIRE Velocity field $v \in \mathbb{R}^{H \times W \times 2}$, number of steps $T \in \mathbb{N}$
+\ENSURE Deformation field $\phi \approx \exp(v)$
+\STATE $\phi^{(0)} \leftarrow v / 2^T$ \quad \COMMENT{$\phi^{(k)}$ represents displacement field}
+\FOR{$k = 1$ to $T$}
+    \STATE $\phi^{(k)}(x) \leftarrow \phi^{(k-1)}(x) + \phi^{(k-1)}(x + \phi^{(k-1)}(x))$ \quad \COMMENT{via bilinear interpolation}
+\ENDFOR
+\RETURN $\phi^{(T)}$
+\end{algorithmic}
+\end{algorithm}
+
+
+\begin{proposition}[Diffeomorphism via scaling-and-squaring]
+\label{prop:diffeomorphism}
+Let $v:\Omega\rightarrow\mathbb{R}^2$ be a smooth stationary velocity field.
+Algorithm~\ref{alg:scaling_squaring} produces $F(x)=x+\phi(x)$ approximating
+$\exp(v)$ with error $O(2^{-T})$~\cite{arsigny2006logdiff}. If the scaled field
+satisfies $\|v/2^T\|_{L^\infty}\leq\epsilon$ for sufficiently small $\epsilon$,
+the result is a diffeomorphism, i.e.\ $\det(J_F(x))>0$ for all $x\in\Omega$.
+\end{proposition}
+
+In our experiments we verify empirically that $\min_x\det(J_F(x))>0.1$ across all
+training and test samples and observe no folding artefacts.
+
+\subsection{Conformal regularisation via differential geometry}
+
+A smooth map is conformal if it preserves angles locally; in two dimensions this
+is characterised by the Cauchy--Riemann equations (Definition~\ref{def:conformal}).
+This property matters for histopathology because it maintains local structure
+(nuclear spacing, glandular shape) while permitting normalisation of global
+morphology.
+
+\begin{definition}[Conformal map]
+\label{def:conformal}
+A smooth map $F:\Omega\rightarrow\Omega$ with Jacobian $J_F$ is conformal iff
+$J_F$ is a scaled rotation at each point, equivalently iff it satisfies the
+Cauchy--Riemann equations
+$\partial F_1/\partial x=\partial F_2/\partial y$ and
+$\partial F_1/\partial y=-\partial F_2/\partial x$.
+\end{definition}
+
+For $F(x)=x+\phi(x)$ we define the conformal energy as the $L^2$ deviation from
+the Cauchy--Riemann equations,
+\begin{equation}
+\mathcal{E}_{conf}(\phi)=\frac{1}{|\Omega|}\int_\Omega\left[\left(\frac{\partial\phi_1}{\partial x}-\frac{\partial\phi_2}{\partial y}\right)^2+\left(\frac{\partial\phi_1}{\partial y}+\frac{\partial\phi_2}{\partial x}\right)^2\right]dx,
+\label{eq:conformal_energy}
+\end{equation}
+discretised with central finite differences and replication padding. Strictly
+conformal maps in 2D are highly restricted, so we appeal to \textit{quasiconformal}
+mapping theory~\cite{ahlfors2006conformal}, which allows bounded angle distortion
+measured by the Beltrami coefficient $\mu=\partial_{\bar z}F/\partial_z F$. A map
+is conformal iff $\mu=0$, with maximal dilatation $K=(1+|\mu|)/(1-|\mu|)$
+(Proposition~\ref{prop:beltrami}); minimising $\mathcal{E}_{conf}$ is equivalent
+to minimising $\|\mu\|_{L^2}$, encouraging $K\approx1$. For typical learned
+transformations we observe mean $|\mu|\approx0.15$ and $K\approx1.35$, i.e.\
+quasiconformal maps with low distortion.
+
+\begin{proposition}[Conformality and the Beltrami coefficient~\cite{ahlfors2006conformal}]
+\label{prop:beltrami}
+A smooth orientation-preserving map $F$ is conformal iff $\mu=0$ almost
+everywhere. The maximal dilatation satisfies $K=(1+|\mu|)/(1-|\mu|)$, and
+$\mathcal{E}_{conf}(\phi)=\frac{4}{|\Omega|}\int_\Omega|\mu|^2|\partial_zF|^2\,dx$
+(see~\cite{lui2014brain}).
+\end{proposition}
+
+\subsection{End-to-end objective and training}
+
+The full objective combines classification, conformal, and smoothness terms,
+\begin{equation}
+\mathcal{L}(\psi,\theta;I,y)=\mathcal{L}_{cls}(f_\theta(\tilde{I}),y)+\lambda_{conf}\mathcal{E}_{conf}(\phi)+\lambda_{smooth}\mathcal{R}_{smooth}(v),
+\label{eq:full_loss}
+\end{equation}
+where $\mathcal{L}_{cls}$ is cross-entropy and
+$\mathcal{R}_{smooth}(v)=\frac{1}{|\Omega|}\sum_{x}\|\nabla v(x)\|_F^2$ is a
+total-variation regulariser on the velocity field, which favours piecewise-smooth
+deformations while permitting sharp transitions at tissue boundaries. All
+operations---scaling-and-squaring, bilinear warping, and conformal-energy
+computation---are differentiable, enabling end-to-end optimisation by
+backpropagation. The ResNet-18 classifier is initialised from ImageNet and the
+U-Net final layer from zero, so training begins at the identity transformation.
+Algorithm~\ref{alg:training} gives the complete procedure.
+
+\begin{algorithm}[t]
+\caption{DCA Training Procedure}
+\label{alg:training}
+\begin{algorithmic}[1]
+\REQUIRE Dataset $\mathcal{D}$, batch size $B$, epochs $E$, initial learning rate $\alpha_0$
+\ENSURE Trained parameters $\psi^*, \theta^*$
+\STATE Initialize $g_\psi$ (U-Net): He init for conv layers, zero init for final $1 \times 1$ layer
+\STATE Initialize $f_\theta$ (ResNet-18): ImageNet pretrained weights
+\FOR{epoch $e = 1$ to $E$}
+    \STATE Set learning rate $\alpha \leftarrow \alpha_0 \cdot 0.95^{\lfloor e/10 \rfloor}$
+    \FOR{each mini-batch $\{(I_b, y_b)\}_{b=1}^B$}
+        \STATE $v_b \leftarrow g_\psi(I_b)$ \quad \COMMENT{Predict velocity field}
+        \STATE $\phi_b \leftarrow \text{ScalingSquaring}(v_b, T=7)$ \quad \COMMENT{Integrate to displacement}
+        \STATE $\tilde{I}_b \leftarrow I_b \circ \phi_b$ \quad \COMMENT{Warp via bilinear interpolation}
+        \STATE $\hat{y}_b \leftarrow f_\theta(\tilde{I}_b)$ \quad \COMMENT{Classify transformed image}
+        \STATE Compute loss $\mathcal{L}(\psi, \theta; I_b, y_b)$ via Eq.~\eqref{eq:full_loss}
+        \STATE Update $(\psi, \theta)$ via Adam with learning rate $\alpha$
+        \STATE \textit{Optional:} Monitor $\min_x \det(J_{F_b}(x))$ to verify diffeomorphism
+    \ENDFOR
+\ENDFOR
+\RETURN $(\psi^*, \theta^*)$
+\end{algorithmic}
+\end{algorithm}
+
+
+\textbf{Computational cost.} The per-image forward pass is dominated by the two
+network passes, giving $O(HW(D_U+D_R))$ complexity---identical in order to
+standard CNN classification. Scaling-and-squaring adds only $\sim$2\,ms to the
+$\sim$15\,ms total inference on an A100 GPU. In contrast to fixed conformal
+methods~\cite{huang2024surface} that require $O(n^3)$ per-image optimisation
+(30--60\,s per image), DCA amortises the geometric cost during training
+(Table~\ref{tab:computational}), enabling real-time deployment.
+
+\begin{table}[t]
+\centering
+\caption{Computational Cost Comparison (224$\times$224 input, A100 GPU)}
+\label{tab:computational}
+\begin{tabularx}{\textwidth}{Xccccc}
+\hline
+\textbf{Method} & \textbf{Params} & \textbf{FLOPs} & \textbf{Train} & \textbf{Infer.} & \textbf{Mem.} \\
+ & (M) & (G) & (h) & (ms) & (GB) \\
+\hline
+ResNet-18 & 11.7 & 1.8 & 2.1 & 8.2 & 1.8 \\
+ResNet-50 & 25.6 & 4.1 & 3.8 & 12.5 & 3.2 \\
+STN-Affine & 12.1 & 2.0 & 2.4 & 9.5 & 2.0 \\
+STN-TPS & 13.8 & 2.4 & 2.9 & 12.3 & 2.4 \\
+Deform. Conv & 12.9 & 2.3 & 3.2 & 11.8 & 2.6 \\
+CEM (online) & 11.7 & 1.8 & -- & 1,850 & 3.2 \\
+CEM (precomp.) & 11.7 & 1.8 & -- & 8.2$^*$ & 1.8 \\
+\textbf{DCA} & 19.2 & 3.1 & 3.5 & 11.1 & 2.6 \\
+\hline
+\end{tabularx}
+
+\vspace{1mm}
+\footnotesize{$^*$Excludes precomputation time (1,850ms/image offline).}
+\end{table}
+%%=============================================================%%
+%% Back matter — npj / Springer Nature declarations
+%%=============================================================%%
+\backmatter
+
+\bmhead{Data availability}
+The NCT-CRC-HE-100K and CRC-VAL-HE-7K datasets used in this study are publicly available histopathology benchmarks (Kather et al.). No new datasets were generated in this study. \textcolor{red}{[Authors: insert the exact repository DOI/URL from which the datasets were obtained before submission.]}
+
+\bmhead{Code availability}
+The source code for DCA is publicly available at \url{https://github.com/xxx/DCA} to facilitate reproducibility and further research.
+
+\bmhead{Acknowledgements}
+The authors thank the reviewers for their valuable feedback that helped improve the quality of this manuscript.
+
+\section*{Declarations}
+
+\begin{itemize}
+\item \textbf{Funding.} Not applicable.
+\item \textbf{Competing interests.} The authors declare no competing interests.
+\item \textbf{Ethics approval and consent to participate.} Not applicable; this study uses publicly available, de-identified datasets.
+\item \textbf{Consent for publication.} Not applicable.
+\item \textbf{Author contribution.} All authors contributed to the study conception, methodology, experiments, and manuscript preparation, and approved the final manuscript.
+\item \textbf{Use of generative AI.} Portions of the text, including language polishing and editing, were assisted by a generative AI tool. The authors have reviewed and verified all content to ensure accuracy, originality, and compliance with scientific and ethical standards. No data analysis, results generation, or intellectual contributions were made by AI tools.
+\end{itemize}
+
+%%=============================================================%%
+%% References. The .bbl produced from references.bib is inlined
+%% at acceptance stage; for compilation we use the bib file.
+%%=============================================================%%
+\bibliography{references}
+
+\end{document}

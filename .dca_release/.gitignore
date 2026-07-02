@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Data (public benchmark — download via scripts/prepare_dataset.py)
+data/
+!data/.gitkeep
+
+# Model weights / checkpoints (large)
+checkpoints/
+*.pth
+*.pt
+*.safetensors
+*.bin
+
+# Training outputs
+outputs/
+logs/
+runs/
+results/
+*.csv
+*.json
+!configs/*.yaml
+
+# Notebooks
+.ipynb_checkpoints/
+.pytest_cache/
+.cache/
+
+# Local helper files (not for publication)
+PUSH_TO_GITHUB.sh
+PUSH_INSTRUCTIONS.md
